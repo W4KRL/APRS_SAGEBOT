@@ -1,3 +1,4 @@
 # APRS_SAGEBOT
 Responds with an aphorism, movie quote, or joke.
->>>>>>> eeff2903c3c07839d2987b5cc3947a60964a700c
+
+The response messages are stored in one or more plain text files in the LittleFS file system.
