@@ -7,14 +7,15 @@
 
 #include "aprsService.h"
 
-#include <Arduino.h>		   // Arduino functions
-#include <WiFiClient.h>		   // APRS connection
+#include <Arduino.h> // Arduino functions
 #include "aphorismGenerator.h" // aphorism generator for bulletins
 #include "credentials.h"	   // APRS, Wi-Fi and weather station credentials
 #include "timeFunctions.h"	   // time functions
 #include "unitConversions.h"   // unit conversion functions
-#include "weatherService.h"	   // weather data
-#include "wug_debug.h"		   // debug print
+#include "wug_debug.h" // debug print
+
+#include <WiFiClient.h> // APRS connection
+WiFiClient client;
 
 //! ***************** APRS *******************
 //            !!! DO NOT CHANGE !!!
@@ -41,17 +42,13 @@ int lineIndex = 1;			 // APRS bulletin index
 
 /*
 *******************************************************
-**************** Post data to APRS-IS *****************
+**************** Logon to APRS-IS *****************
 *******************************************************
 */
-void postToAPRS(String message)
-{
-	// 12/20/2024
-	// See http://www.aprs-is.net/Connecting.aspx
-	// user mycall[-ss] pass passcode[ vers softwarename softwarevers[ UDP udpport][ servercommand]]
 
-	// Create a WiFiClient object to handle the connection to the APRS server
-	WiFiClient client;
+void logonToAPRS()
+{
+	// Attempt connection to APRS-IS server
 	if (client.connect(APRS_SERVER, APRS_PORT))
 	{
 		DEBUG_PRINTLN(F("APRS connected"));
@@ -59,46 +56,51 @@ void postToAPRS(String message)
 	else
 	{
 		DEBUG_PRINTLN(F("APRS connection failed."));
+		return;
 	}
 
 	String rcvLine = client.readStringUntil('\n');
 	DEBUG_PRINTLN("Rcvd: " + rcvLine);
+
 	if (rcvLine.indexOf("full") > 0)
 	{
 		DEBUG_PRINTLN(F("APRS port full. Retrying."));
-		client.stop(); // disconnect from port
+		client.stop();
 		delay(500);
-		if (client.connect(APRS_SERVER, APRS_PORT)) // retry
+
+		if (client.connect(APRS_SERVER, APRS_PORT))
 		{
 			DEBUG_PRINTLN(F("APRS reconnected successfully."));
 		}
 		else
 		{
 			DEBUG_PRINTLN(F("APRS reconnection failed."));
-			return; // Exit if reconnection fails
+			return;
 		}
 	}
 
-	// send APRS-IS logon info
+	// Send APRS-IS logon info
 	String dataString = "user " + CALLSIGN + " pass " + APRS_PASSCODE;
-	dataString += " vers IoT-Kits " + APRS_SOFTWARE_VERS; // softwarevers
-	client.println(dataString);							  // send to APRS-IS
+	dataString += " vers IoT-Kits " + APRS_SOFTWARE_VERS;
+	client.println(dataString);
 	DEBUG_PRINTLN("APRS logon: " + dataString);
 
 	boolean verified = false;
 	unsigned long timeBegin = millis();
+
 	while (!verified && (millis() - timeBegin < APRS_TIMEOUT))
 	{
 		if (client.available())
 		{
 			String rcvLine = client.readStringUntil('\n');
 			DEBUG_PRINTLN("Rcvd: " + rcvLine);
+
 			if (rcvLine.indexOf("verified") != -1 && rcvLine.indexOf("unverified") == -1)
 			{
 				verified = true;
 			}
 		}
-		yield(); // Allow other tasks to run
+		yield();
 	}
 
 	if (!verified)
@@ -106,52 +108,15 @@ void postToAPRS(String message)
 		DEBUG_PRINTLN("APRS user unverified.");
 		return;
 	}
+}
 
-	DEBUG_PRINTLN("APRS send: " + message);
-	client.println(message);
-	client.stop(); // disconnect from APRS-IS server
-	DEBUG_PRINTLN("APRS done.");
-} // postToAPRS()
-
-/*
-*******************************************************
-************** Format Weather for APRS-IS *************
-*******************************************************
-*/
-String APRSformatWeather()
+void checkAPRSConnection()
 {
-	/* page 65 http://www.aprs.org/doc/APRS101.PDF
-	   Using Complete Weather Report Format — with Lat/Long position, no Timestamp pg 75
-	   ________________________________________________________________
-	   |!|Lat|/|Lon|_|Wind Dir|/|Wind Speed|Weather Data|Software|Unit|
-	   |1| 8 |1| 9 |1|    3   |1|    3     |      n     |    1   |2-4 |
-	   |_|___|_|___|_|________|_|__________|____________|________|____|
-   */
-	int humid = (wx.obsHumidity == 100) ? 0 : wx.obsHumidity; // pg 74
-
-	String dataString = CALLSIGN;
-	dataString += ">APRS,TCPIP*:";
-	dataString += "!" + APRSlocation(wx.obsLat, wx.obsLon);				// position in DDmm.mmN/DDDmm.mmW
-	dataString += "_" + APRSpadder(wx.obsWindDir, 3);					// degrees clockwise from north
-	dataString += "/" + APRSpadder(KMtoMILES(wx.obsWindSpeed), 3);		// speed in mph
-	dataString += "g" + APRSpadder(KMtoMILES(wx.obsWindGust), 3);		// speed in mph
-	dataString += "t" + APRSpadder(CtoF(wx.obsTemp), 3);				// temperature in Fahrenheit
-	dataString += "L" + APRSpadder(wx.obsSolarRadiation, 3);			// luminosity < 999
-	dataString += "r" + APRSpadder(100 * MMtoIN(wx.obsPrecipRate), 3);	// rainfall rate in 100th of inches per hour
-	dataString += "P" + APRSpadder(100 * MMtoIN(wx.obsPrecipTotal), 3); // rainfall since midnight in 100th of inches
-	dataString += "h" + APRSpadder(humid, 2);							// relative humidity in % 00 = 100%
-	dataString += "b" + APRSpadder(10 * wx.obsPressure, 5);				// sea level pressure in 10ths of millibars
-	dataString += APRS_DEVICE_NAME;
-	// dataString += " ";
-	// dataString += APRS_SOFTWARE_VERS;
-	DEBUG_PRINTLN("APRS Weather: " + dataString);
-	return dataString;
-} // APRSformatWeather()
-
-// ******** weather TickTwo callback ********
-void postWXtoAPRS()
-{
-	postToAPRS(APRSformatWeather());
+	if (!client.connected())
+	{
+		DEBUG_PRINTLN(F("APRS connection lost. Reconnecting..."));
+		logonToAPRS();
+	}
 }
 
 /*
@@ -175,12 +140,6 @@ String APRSformatBulletin(String message, String ID)
 	DEBUG_PRINTLN("APRS Bulletin: " + str);
 	return str;
 } // APRSformatBulletin()
-
-// ******** bulletin TickTwo callback ********
-void APRSsendBulletin(String msg, String ID)
-{
-	postToAPRS(APRSformatBulletin(msg, ID));
-}
 
 /*
 *******************************************************
@@ -240,6 +199,21 @@ String APRSlocation(float lat, float lon)
 	return String(buf);
 } // APRSlocation()
 
+void postToAPRS(String message)
+{
+	// post a message to APRS-IS
+	checkAPRSConnection(); // check if connected to APRS-IS server
+	if (client.connected())
+	{
+		client.println(message);
+		DEBUG_PRINTLN("APRS posted: " + message);
+	}
+	else
+	{
+		DEBUG_PRINTLN(F("APRS connection lost. Cannot post message."));
+	}
+}
+
 void processBulletins()
 {
 	//! process APRS bulletins
@@ -271,32 +245,15 @@ void processBulletins()
 	}
 }
 
-// ********** Bulletin scheduling functions **********
-// void sendMorningBulletin() {
-//     if (!amBulletinSent) {
-//         String bulletinText = pickAphorism(APHORISM_FILE, lineArray);
-//         APRSsendBulletin(bulletinText, "M");
-//         amBulletinSent = true;
-//     }
-//     // Re-schedule for tomorrow at 8:00
-//     myTZ.setEvent(sendMorningBulletin, 8, 0, 0);
-// }
+void APRSsendBulletin(String message, String ID)
+{
+	// send a bulletin or announcement to APRS-IS
+	if (message.length() > 67)
+	{
+		DEBUG_PRINTLN(F("APRS bulletin too long. Max 67 characters."));
+		return;
+	}
 
-// void sendEveningBulletin() {
-//     if (!pmBulletinSent) {
-//         String bulletinText = pickAphorism(APHORISM_FILE, lineArray);
-//         APRSsendBulletin(bulletinText, "E");
-//         pmBulletinSent = true;
-//     }
-//     // Re-schedule for tomorrow at 20:00
-//     myTZ.setEvent(sendEveningBulletin, 20, 0, 0);
-// }
-
-// void resetBulletinFlags() {
-//     amBulletinSent = false;
-//     pmBulletinSent = false;
-//     // Reschedule for next midnight
-//     myTZ.setEvent(resetBulletinFlags, 0, 0, 0);
-// }
-
-
+	String bulletin = APRSformatBulletin(message, ID);
+	postToAPRS(bulletin);
+} // APRSsendBulletin()	

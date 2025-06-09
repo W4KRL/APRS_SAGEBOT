@@ -12,19 +12,24 @@ extern bool amBulletinSent; ///< Indicates if the morning bulletin was sent
 extern bool pmBulletinSent; ///< Indicates if the evening bulletin was sent
 
 /**
+ * @brief Logs on to APRS-IS server.
+ *
+ * This function connects to the APRS-IS server, sends the logon information,
+ * and waits for verification. If the connection fails or verification is not
+ * successful, it will print an error message.
+ */
+void logonToAPRS();
+
+/**
+ * @brief Checks the connection to APRS-IS and reconnects if necessary.
+ */
+void checkAPRSConnection();
+
+/**
  * @brief Posts a message to APRS-IS.
  * @param message Message to be posted.
  */
 void postToAPRS(String message);
-
-/**
- * @brief Formats and sends weather data to APRS-IS.
- * @return Formatted weather string.
- */
-String APRSformatWeather();
-
-void postWXtoAPRS();
-
 
 /**
  * @brief Formats a bulletin or announcement message according to the APRS specification.
