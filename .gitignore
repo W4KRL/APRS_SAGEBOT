@@ -1,0 +1,13 @@
+# PlatformIO build output
+.pio/
+.pioenvs/
+.pio/build/
+
+# Doxygen output
+docs/html/
+docs/latex/
+html/
+latex/
+
+# VS Code settings (optional)
+.vscode/
