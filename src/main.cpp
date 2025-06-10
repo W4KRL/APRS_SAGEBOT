@@ -20,23 +20,10 @@
 #include "aphorismGenerator.h" // aphorism functions
 #include "aprsService.h"       // APRS functions
 #include "credentials.h"       // account information
-// #include "onetimeScreens.h"    // splash screen and information screens
 #include "tftDisplay.h"        // TFT display functions
 #include "timeFunctions.h"     // timezone object
 #include "wifiConnection.h"    // Wi-Fi connection
 #include "wug_debug.h"         // debug print macro
-//! UNUSED IN THIS VERSION
-// #include "analogClock.h"       // analog clock functions
-// #include "digitalClock.h"      // digital clock display
-// #include "indoorSensor.h"      // indoor sensor functions
-// #include "sequentialFrames.h"  // sequential weather, almanac, and clock frames
-// #include "taskControl.h"       // task control functions
-// #include "thingSpeakService.h" // ThingSpeak posting
-// #include "unitConversions.h"   // unit conversions
-// #include "weatherService.h"    // weather data from Weather Underground API
-
-// #include <WiFiClient.h>		   // APRS connection
-// WiFiClient client;
 
 /*
 ******************************************************
