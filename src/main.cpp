@@ -47,9 +47,9 @@ void setup()
 void loop()
 {
   checkWiFiConnection(); // check Wi-Fi connection status
+  checkAPRSConnection(); // check APRS-IS connection status
   events();              // ezTime events including autoconnect to NTP server
   processBulletins();    // process APRS bulletins
-  // updateTasks();         // update the scheduled tasks
 } // loop()
 
 /*

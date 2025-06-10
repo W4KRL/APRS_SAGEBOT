@@ -9,7 +9,7 @@
 
 #include <Arduino.h> // for String
 
-const String FW_VERSION = "250529"; // Firmware version
+const String FW_VERSION = "2500610"; // Firmware version
 
 // Wi-Fi Credentials
 //! Place values in quotes " "

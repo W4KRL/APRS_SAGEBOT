@@ -7,14 +7,13 @@
 
 #include "aprsService.h"
 
-#include <Arduino.h> // Arduino functions
+#include <Arduino.h>		   // Arduino functions
 #include "aphorismGenerator.h" // aphorism generator for bulletins
 #include "credentials.h"	   // APRS, Wi-Fi and weather station credentials
 #include "timeFunctions.h"	   // time functions
-#include "unitConversions.h"   // unit conversion functions
-#include "wug_debug.h" // debug print
+#include <WiFiClient.h>		   // APRS connection
+#include "wug_debug.h"		   // debug print macro
 
-#include <WiFiClient.h> // APRS connection
 WiFiClient client;
 
 //! ***************** APRS *******************
@@ -32,6 +31,25 @@ const char *APRS_DEVICE_NAME = "https://w4krl.com/iot-kits/"; // link to my webs
 #define APRS_SOFTWARE_VERS FW_VERSION						  // FW version
 #define APRS_PORT 14580										  // do not change port
 #define APRS_TIMEOUT 2000L									  // milliseconds
+
+// *******************************************************
+// ******************* GLOBALS ***************************
+// *******************************************************
+// APRS Data Type Identifiers
+// page 17 http://www.aprs.org/doc/APRS101.PDF
+const char APRS_ID_POSITION_NO_TIMESTAMP = '!';
+const char APRS_ID_TELEMETRY = 'T';
+const char APRS_ID_WEATHER = '_';
+const char APRS_ID_MESSAGE = ':';
+const char APRS_ID_QUERY = '?';
+const char APRS_ID_STATUS = '>';
+const char APRS_ID_USER_DEF = '{';
+const char APRS_ID_COMMENT = '#';
+String APRSdataMessage = "";   // message text
+String APRSdataWeather = "";   // weather data
+String APRSdataTelemetry = ""; // telemetry data
+String APRSserver = "";		   // APRS-IS server
+char APRSage[9] = "";		   // time stamp for received data
 
 //! ************ APRS Bulletin globals ***************
 // int *lineArray;				 // holds shuffled index to aphorisms
@@ -81,7 +99,7 @@ void logonToAPRS()
 
 	// Send APRS-IS logon info
 	String dataString = "user " + CALLSIGN + " pass " + APRS_PASSCODE;
-	dataString += " vers IoT-Kits " + APRS_SOFTWARE_VERS;
+	dataString += " SAGEBT " + APRS_SOFTWARE_VERS;
 	client.println(dataString);
 	DEBUG_PRINTLN("APRS logon: " + dataString);
 
@@ -256,4 +274,95 @@ void APRSsendBulletin(String message, String ID)
 
 	String bulletin = APRSformatBulletin(message, ID);
 	postToAPRS(bulletin);
-} // APRSsendBulletin()	
+} // APRSsendBulletin()
+
+// *******************************************************
+// ************ RECEIVE APRS-IS DATA *********************
+// *******************************************************
+String APRSreceiveData()
+{
+	// add a timeout function
+	const int maxSize = 500; // what is largest packet???
+	char rcvBuffer[maxSize] = "";
+	if (client.available() > 0)
+	{
+		int i = 0;
+		while (i < maxSize)
+		{
+			char charRcvd = client.read();
+			rcvBuffer[i] = charRcvd;
+			i++; // increment index
+			if (charRcvd == '\n')
+			{
+				// entire line received
+				break;
+			}
+		}
+		rcvBuffer[i] = '\0'; // add null marker at end to finish string
+		Serial.println(rcvBuffer);
+	}
+	return rcvBuffer;
+} // APRSreceiveData()
+
+// *******************************************************
+// **************** SEND APRS ACK ************************
+// *******************************************************
+void APRSsendACK(String recipient, String msgID)
+{
+	String dataString = CALLSIGN;
+	dataString += ">APRS,TCPIP*:";
+	dataString += APRS_ID_MESSAGE;
+	dataString += APRSpadCall(recipient); // pad to 9 characters
+	dataString += APRS_ID_MESSAGE;
+	dataString += "ack";
+	dataString += msgID;
+	client.println(dataString); // send to APRS-IS
+	Serial.println(dataString); // print to serial port
+} // APRsendACK()
+
+void APRSreceivedData(String APRSrcvd)
+{
+	// process received APRS-IS data
+	// parse the rcvdData string to extract relevant information
+	// for example, you can extract the callsign, message, etc.
+	// and store them in appropriate variables or data structures
+
+	// ignore comments and short strings (10 is arbitrary)
+	if (APRSrcvd[0] != APRS_ID_COMMENT && APRSrcvd.length() > 10)
+	{
+		// does stream contain weather data?
+		if (APRSrcvd.indexOf(APRS_ID_WEATHER) > 0)
+		{
+			if (APRSdataWeather != APRSrcvd) // it has changed so update it
+			{
+				APRSdataWeather = APRSrcvd; // record time data is received
+				sprintf(APRSage, "%02d:%02d:%02d", myTZ.hour(), minute(), second());
+			}
+		}
+		// does stream contain Telemetry?
+		if (APRSrcvd.indexOf("T#") > 0)
+		{ // better than looking for 'T'
+			if (APRSdataTelemetry != APRSrcvd)
+			{
+				APRSdataTelemetry = APRSrcvd;
+			}
+		}
+		// does stream contain a message?
+		if (APRSrcvd.indexOf("::") > 0)
+		{ // special case
+		  // int buttonState = digitalRead(D1);
+		  // APRSdataMessage = APRSrcvd;
+		  // if (aprsMessageFrame() == true)
+		  // {
+		  // 	blockPulse = true;
+		  // 	while (buttonState == HIGH)
+		  // 	{
+		  // 		buttonState = digitalRead(D1);
+		  // 		delay(200);
+		  // 	}
+		  // 	blockPulse = false;
+		  // }
+		}
+	}
+}
+// end of file
