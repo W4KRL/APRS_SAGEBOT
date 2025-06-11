@@ -20,6 +20,7 @@
 #include "aphorismGenerator.h" // aphorism functions
 #include "aprsService.h"       // APRS functions
 #include "credentials.h"       // account information
+#include "onetimeScreens.h"    // one-time screens
 #include "tftDisplay.h"        // TFT display functions
 #include "timeFunctions.h"     // timezone object
 #include "wifiConnection.h"    // Wi-Fi connection
@@ -34,6 +35,7 @@ void setup()
 {
   Serial.begin(115200); // initialize serial monitor
   setupTFTDisplay();    // initialize TFT display
+  splashScreen();       // display splash screen
   logonToRouter();      // connect to WiFi
   logonToAPRS();        // connect to APRS-IS server
   mountFS();            // mount LittleFS and prepare APRS bulletin file

@@ -8,6 +8,7 @@
 #include "tftDisplay.h"
 
 #include <Arduino.h> // for Arduino functions
+#include <TFT_eSPI.h> // for TFT_eSPI library
 #include "Roboto_Bold_12.h" // for Roboto Bold 12 font
 #include "Roboto_Bold_16.h" // for Roboto Bold 16 font
 
@@ -24,7 +25,7 @@ const int HEADER_Y = 36;
 
 const int FRAME_ORIENTATION = USB_LEFT;
 
-//! Display instaiation
+//! Display instantiation
 TFT_eSPI tft;
 
 // Font resources

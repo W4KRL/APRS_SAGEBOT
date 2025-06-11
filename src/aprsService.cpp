@@ -328,7 +328,7 @@ void APRSreceivedData(String APRSrcvd)
 	// and store them in appropriate variables or data structures
 
 	// ignore comments and short strings (10 is arbitrary)
-	if (APRSrcvd[0] != APRS_ID_COMMENT && APRSrcvd.length() > 10)
+	if (!APRSrcvd.isEmpty() && APRSrcvd[0] != APRS_ID_COMMENT && APRSrcvd.length() > 10)
 	{
 		// does stream contain weather data?
 		if (APRSrcvd.indexOf(APRS_ID_WEATHER) > 0)
@@ -336,7 +336,7 @@ void APRSreceivedData(String APRSrcvd)
 			if (APRSdataWeather != APRSrcvd) // it has changed so update it
 			{
 				APRSdataWeather = APRSrcvd; // record time data is received
-				sprintf(APRSage, "%02d:%02d:%02d", myTZ.hour(), minute(), second());
+				sprintf(APRSage, "%02d:%02d:%02d", myTZ.hour(), myTZ.minute(), myTZ.second());
 			}
 		}
 		// does stream contain Telemetry?

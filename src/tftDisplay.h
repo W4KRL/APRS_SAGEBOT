@@ -8,7 +8,7 @@
 #ifndef TFT_DISPLAY_H
 #define TFT_DISPLAY_H
 
-#include <TFT_eSPI.h> // [manager] v2.4.0 TFT_eSPI
+#include <TFT_eSPI.h>
 
 //! TFT instance
 extern TFT_eSPI tft;
