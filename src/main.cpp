@@ -37,6 +37,7 @@ void setup()
   setupTFTDisplay();    // initialize TFT display
   splashScreen();       // display splash screen
   logonToRouter();      // connect to WiFi
+  setTimeZone();        // set timezone using ezTime library
   logonToAPRS();        // connect to APRS-IS server
   mountFS();            // mount LittleFS and prepare APRS bulletin file
 } // setup()
@@ -52,6 +53,7 @@ void loop()
   checkAPRSConnection(); // check APRS-IS connection status
   events();              // ezTime events including autoconnect to NTP server
   processBulletins();    // process APRS bulletins
+  // aprsReceiveData(); // receive APRS-IS data
 } // loop()
 
 /*

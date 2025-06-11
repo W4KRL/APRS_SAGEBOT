@@ -45,5 +45,6 @@ IST  Asia/Kolkata
 const String CALLSIGN = "W4KRL-2";   // call-SSID
 const String APRS_PASSCODE = "9092"; // https://aprs.do3sww.de/
 const String APHORISM_FILE = "/aphorisms.txt";
+const char APRS_FILTER[] = "b/W4KRL-*";         // default value - Change to "b-your call-*"
 
 // End of file
