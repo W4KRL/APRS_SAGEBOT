@@ -13,7 +13,7 @@ const String FW_VERSION = "2500610"; // Firmware version
 
 // Wi-Fi Credentials
 //! Place values in quotes " "
-const String WIFI_SSID = "DCMNET";                   // your Wi-Fi SSID
+const String WIFI_SSID = "DCMNET";					 // your Wi-Fi SSID
 const String WIFI_PASSWORD = "0F1A2D3E4D5G6L7O8R9Y"; // your Wi-Fi password
 
 const String MY_TIMEZONE = "America/New_York"; // Olson timezone https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
@@ -42,9 +42,10 @@ IST  Asia/Kolkata
 
 // APRS credentials
 //! Place all values in quotes " "
-const String CALLSIGN = "W4KRL-2";   // call-SSID
-const String APRS_PASSCODE = "9092"; // https://aprs.do3sww.de/
+const String CALLSIGN = "W4KRL-2";			// call-SSID
+const String APRS_PASSCODE = "9092";		// https://aprs.do3sww.de/
+const String APRS_SOFTWARE_NAME = "SAGEBT"; // APRS ID for weather data
 const String APHORISM_FILE = "/aphorisms.txt";
-const char APRS_FILTER[] = "b/W4KRL-*";         // default value - Change to "b-your call-*"
+const String APRS_FILTER = "m/50"; // default value - Change to "b-your call-*"
 
 // End of file

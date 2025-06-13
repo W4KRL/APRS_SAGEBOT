@@ -22,6 +22,8 @@ extern const String MY_TIMEZONE;   // Olson timezone https://en.wikipedia.org/wi
 extern const String CALLSIGN;      // call-SSID
 extern const String APRS_PASSCODE; // https://aprs.do3sww.de/
 extern const String APHORISM_FILE;
+extern const String APRS_SOFTWARE_NAME;
+extern const String APRS_FILTER; // default value - Change to "b-your call-*"
 
 #endif // CREDENTIALS_H
 // End of file

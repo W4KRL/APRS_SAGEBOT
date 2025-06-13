@@ -12,8 +12,9 @@ extern bool amBulletinSent;
 extern bool pmBulletinSent;
 
 void logonToAPRS();
-void checkAPRSConnection();
-void APRSreceivedData(String APRSrcvd);
+bool readAPRSPacket(String &packet);
 void postToAPRS(String message);
 void APRSsendBulletin(String msg, String ID);
 void processBulletins();
+void handleAPRSData(const String &packet);
+void pollAPRS();

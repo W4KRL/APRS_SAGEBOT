@@ -33,8 +33,8 @@ void splashScreen()
   }
 
   tft.setTextDatum(TC_DATUM); // font top, centered
-  tft.drawString("D1S-WUG", SCREEN_W2, row[0]);
-  tft.drawString("Display", SCREEN_W2, row[1]);
+  tft.drawString("SAGEBT", SCREEN_W2, row[0]);
+  tft.drawString("Device", SCREEN_W2, row[1]);
   tft.drawString("by", SCREEN_W2, row[2]);
   tft.drawString("IoT Kits", SCREEN_W2, row[3]);
   tft.drawString("v" + FW_VERSION + "-M", SCREEN_W2, row[4]);

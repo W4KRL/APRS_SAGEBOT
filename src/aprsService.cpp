@@ -27,10 +27,11 @@ WiFiClient client;
 // Oceania: apan.aprs2.net
 const char *APRS_SERVER = "noam.aprs2.net";					  // recommended for North America
 const char *APRS_DEVICE_NAME = "https://w4krl.com/iot-kits/"; // link to my website
-#define APRS_SOFTWARE_NAME "D1S-VEVOR"						  // unit ID
+// #define APRS_SOFTWARE_NAME "D1S-VEVOR"						  // unit ID
 #define APRS_SOFTWARE_VERS FW_VERSION						  // FW version
 #define APRS_PORT 14580										  // do not change port
 #define APRS_TIMEOUT 2000L									  // milliseconds
+const int APRS_BUFFER_SIZE = 513;							  // APRS buffer size, must be at least 512 bytes + 1 for null terminator
 
 // *******************************************************
 // ******************* GLOBALS ***************************
@@ -98,8 +99,10 @@ void logonToAPRS()
 	}
 
 	// Send APRS-IS logon info
-	String dataString = "user " + CALLSIGN + " pass " + APRS_PASSCODE;
-	dataString += " SAGEBT " + APRS_SOFTWARE_VERS;
+	String dataString = "user " + CALLSIGN;
+	dataString += " pass " + APRS_PASSCODE;
+	dataString += " ver " + APRS_SOFTWARE_NAME + " " + APRS_SOFTWARE_VERS;
+	dataString += " filter " + APRS_FILTER;
 	client.println(dataString);
 	DEBUG_PRINTLN("APRS logon: " + dataString);
 
@@ -128,14 +131,14 @@ void logonToAPRS()
 	}
 }
 
-void checkAPRSConnection()
-{
-	if (!client.connected())
-	{
-		DEBUG_PRINTLN(F("APRS connection lost. Reconnecting..."));
-		logonToAPRS();
-	}
-}
+// void checkAPRSConnection()
+// {
+// 	if (!client.connected())
+// 	{
+// 		DEBUG_PRINTLN(F("APRS connection lost. Reconnecting..."));
+// 		logonToAPRS();
+// 	}
+// }
 
 /*
 *******************************************************
@@ -220,7 +223,7 @@ String APRSlocation(float lat, float lon)
 void postToAPRS(String message)
 {
 	// post a message to APRS-IS
-	checkAPRSConnection(); // check if connected to APRS-IS server
+	// checkAPRSConnection(); // check if connected to APRS-IS server
 	if (client.connected())
 	{
 		client.println(message);
@@ -279,30 +282,30 @@ void APRSsendBulletin(String message, String ID)
 // *******************************************************
 // ************ RECEIVE APRS-IS DATA *********************
 // *******************************************************
-String APRSreceiveData()
-{
-	// add a timeout function
-	const int maxSize = 500; // what is largest packet???
-	char rcvBuffer[maxSize] = "";
-	if (client.available() > 0)
-	{
-		int i = 0;
-		while (i < maxSize)
-		{
-			char charRcvd = client.read();
-			rcvBuffer[i] = charRcvd;
-			i++; // increment index
-			if (charRcvd == '\n')
-			{
-				// entire line received
-				break;
-			}
-		}
-		rcvBuffer[i] = '\0'; // add null marker at end to finish string
-		Serial.println(rcvBuffer);
-	}
-	return rcvBuffer;
-} // APRSreceiveData()
+// String GetAprsPacket()
+// {
+// 	// add a timeout function
+// 	const int maxSize = 500; // what is largest packet???
+// 	char rcvBuffer[maxSize] = "";
+// 	if (client.available() > 0)
+// 	{
+// 		int i = 0;
+// 		while (i < maxSize)
+// 		{
+// 			char charRcvd = client.read();
+// 			rcvBuffer[i] = charRcvd;
+// 			i++; // increment index
+// 			if (charRcvd == '\n')
+// 			{
+// 				// entire line received
+// 				break;
+// 			}
+// 		}
+// 		rcvBuffer[i] = '\0'; // add null marker at end to finish string
+// 		Serial.println(rcvBuffer);
+// 	}
+// 	return rcvBuffer;
+// } // getAPRSPacket()
 
 // *******************************************************
 // **************** SEND APRS ACK ************************
@@ -320,49 +323,125 @@ void APRSsendACK(String recipient, String msgID)
 	Serial.println(dataString); // print to serial port
 } // APRsendACK()
 
-void APRSreceivedData(String APRSrcvd)
-{
-	// process received APRS-IS data
-	// parse the rcvdData string to extract relevant information
-	// for example, you can extract the callsign, message, etc.
-	// and store them in appropriate variables or data structures
+/**
+ * @brief Processes received APRS-IS data string and updates relevant data structures.
+ *
+ * This function parses the incoming APRS-IS data string to extract and update
+ * weather data, telemetry, and messages. It ignores comments and short strings.
+ * If the received data contains weather or telemetry information and it has changed
+ * since the last update, the corresponding variables are updated. The function also
+ * checks for messages, but message handling is currently commented out.
+ *
+ * @param APRSrcvd The received APRS-IS data as a String.
+ */
+// void APRSparseData(String APRSrcvd)
+// {
+// 	// process received APRS-IS data
+// 	// parse the rcvdData string to extract relevant information
+// 	// for example, you can extract the callsign, message, etc.
+// 	// and store them in appropriate variables or data structures
 
-	// ignore comments and short strings (10 is arbitrary)
-	if (!APRSrcvd.isEmpty() && APRSrcvd[0] != APRS_ID_COMMENT && APRSrcvd.length() > 10)
+// 	// ignore comments and short strings (10 is arbitrary)
+// 	if (!APRSrcvd.isEmpty() && APRSrcvd[0] != APRS_ID_COMMENT && APRSrcvd.length() > 10)
+// 	{
+// 		// does stream contain weather data?
+// 		if (APRSrcvd.indexOf(APRS_ID_WEATHER) > 0)
+// 		{
+// 			if (APRSdataWeather != APRSrcvd) // it has changed so update it
+// 			{
+// 				APRSdataWeather = APRSrcvd; // record time data is received
+// 				sprintf(APRSage, "%02d:%02d:%02d", myTZ.hour(), myTZ.minute(), myTZ.second());
+// 			}
+// 		}
+// 		// does stream contain Telemetry?
+// 		if (APRSrcvd.indexOf("T#") > 0)
+// 		{
+// 			if (APRSdataTelemetry != APRSrcvd)
+// 			{
+// 				APRSdataTelemetry = APRSrcvd;
+// 			}
+// 		}
+// 		// does stream contain a message?
+// 		if (APRSrcvd.indexOf("::") > 0)
+// 		{
+// 			  APRSdataMessage = APRSrcvd;
+// 		}
+// 	}
+// } // APRSparsedData()
+
+/////////////////////
+bool readAPRSPacket(String &packet)
+{
+	static unsigned long timeoutStamp = 0;
+	const unsigned long TIMEOUT_MS = 1500;
+
+	int retries = 0;
+	while ((!client.connected() || !client.available()) && retries < 5)
 	{
-		// does stream contain weather data?
-		if (APRSrcvd.indexOf(APRS_ID_WEATHER) > 0)
+		logonToAPRS(); // Attempt to reconnect if not connected
+		retries++;
+		delay(200); // Small delay between retries
+	}
+	if (!client.connected() || !client.available())
+	{
+		return false;
+	}
+
+	if (timeoutStamp == 0)
+	{
+		timeoutStamp = millis();
+	}
+
+	packet = client.readStringUntil('\n');
+
+	if (packet.length() > 0)
+	{
+		timeoutStamp = 0; // Reset timer
+		return true;
+	}
+
+	if (millis() - timeoutStamp > TIMEOUT_MS)
+	{
+		timeoutStamp = 0;
+		client.stop();
+	}
+
+	return false;
+}
+
+void handleAPRSData(const String &packet)
+{
+	if (packet.length() < 10 || packet.charAt(0) == '#')
+		return;
+
+	//   time_t receivedTime = myTZ.now();
+
+	if (packet.indexOf("APRS_WX_ID") != -1)
+	{
+		if (APRSdataWeather != packet)
 		{
-			if (APRSdataWeather != APRSrcvd) // it has changed so update it
-			{
-				APRSdataWeather = APRSrcvd; // record time data is received
-				sprintf(APRSage, "%02d:%02d:%02d", myTZ.hour(), myTZ.minute(), myTZ.second());
-			}
+			APRSdataWeather = packet;
+			//   APRSweatherTime = receivedTime;
 		}
-		// does stream contain Telemetry?
-		if (APRSrcvd.indexOf("T#") > 0)
-		{ // better than looking for 'T'
-			if (APRSdataTelemetry != APRSrcvd)
-			{
-				APRSdataTelemetry = APRSrcvd;
-			}
-		}
-		// does stream contain a message?
-		if (APRSrcvd.indexOf("::") > 0)
-		{ // special case
-		  // int buttonState = digitalRead(D1);
-		  // APRSdataMessage = APRSrcvd;
-		  // if (aprsMessageFrame() == true)
-		  // {
-		  // 	blockPulse = true;
-		  // 	while (buttonState == HIGH)
-		  // 	{
-		  // 		buttonState = digitalRead(D1);
-		  // 		delay(200);
-		  // 	}
-		  // 	blockPulse = false;
-		  // }
+	}
+
+	if (packet.indexOf("T#") != -1)
+	{
+		if (APRSdataTelemetry != packet)
+		{
+			APRSdataTelemetry = packet;
 		}
 	}
 }
+
+void pollAPRS()
+{
+	String aprsBuffer;
+	if (readAPRSPacket(aprsBuffer))
+	{
+		handleAPRSData(aprsBuffer);
+		Serial.println("Received APRS packet: " + aprsBuffer);
+	}
+}
+
 // end of file

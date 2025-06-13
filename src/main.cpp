@@ -21,6 +21,7 @@
 #include "aprsService.h"       // APRS functions
 #include "credentials.h"       // account information
 #include "onetimeScreens.h"    // one-time screens
+#include "taskControl.h"       // task control functions
 #include "tftDisplay.h"        // TFT display functions
 #include "timeFunctions.h"     // timezone object
 #include "wifiConnection.h"    // Wi-Fi connection
@@ -40,6 +41,7 @@ void setup()
   setTimeZone();        // set timezone using ezTime library
   logonToAPRS();        // connect to APRS-IS server
   mountFS();            // mount LittleFS and prepare APRS bulletin file
+  startTasks();         // start scheduled tasks
 } // setup()
 
 /*
@@ -50,10 +52,9 @@ void setup()
 void loop()
 {
   checkWiFiConnection(); // check Wi-Fi connection status
-  checkAPRSConnection(); // check APRS-IS connection status
   events();              // ezTime events including autoconnect to NTP server
-  processBulletins();    // process APRS bulletins
-  // aprsReceiveData(); // receive APRS-IS data
+  updateTasks();         // update scheduled tasks
+  // processBulletins();        // process APRS bulletins
 } // loop()
 
 /*
