@@ -30,6 +30,6 @@ extern const GFXfont* SmallBold;
 extern const GFXfont* LargeBold;
 
 //! Functions
-void setupTFTDisplay();
+void setupTFTdisplay();
 
 #endif // TFT_DISPLAY_H
