@@ -37,7 +37,7 @@ int SCREEN_H = 128;
 int SCREEN_W2 = SCREEN_W / 2;
 int SCREEN_H2 = SCREEN_H / 2;
 
-void setupTFTDisplay()
+void setupTFTdisplay()
 {
   tft.init();
   tft.setRotation(FRAME_ORIENTATION);
