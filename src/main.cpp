@@ -34,14 +34,14 @@
 */
 void setup()
 {
-  Serial.begin(115200); // initialize serial monitor
-  setupTFTDisplay();    // initialize TFT display
-  splashScreen();       // display splash screen
-  logonToRouter();      // connect to WiFi
-  setTimeZone();        // set timezone using ezTime library
-  logonToAPRS();        // connect to APRS-IS server
-  mountFS();            // mount LittleFS and prepare APRS bulletin file
-  startTasks();         // start scheduled tasks
+  Serial.begin(115200);  // initialize serial monitor
+  setupTFTdisplay();     // initialize TFT display
+  splashScreen();        // display splash screen
+  logonToRouter();       // connect to WiFi
+  setTimeZone();         // set timezone using ezTime library
+  connectToAPRSserver(); // connect to APRS-IS server
+  mountFS();             // mount LittleFS and prepare APRS bulletin file
+  startTasks();          // start scheduled tasks
 } // setup()
 
 /*
@@ -55,6 +55,7 @@ void loop()
   events();              // ezTime events including autoconnect to NTP server
   updateTasks();         // update scheduled tasks
   // processBulletins();        // process APRS bulletins
+  updateAPRS(); // update APRS data
 } // loop()
 
 /*

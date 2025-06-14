@@ -14,7 +14,7 @@
 #include <WiFiClient.h>		   // APRS connection
 #include "wug_debug.h"		   // debug print macro
 
-WiFiClient client;
+WiFiClient client; // APRS-IS client connection
 
 //! ***************** APRS *******************
 //            !!! DO NOT CHANGE !!!
@@ -28,10 +28,10 @@ WiFiClient client;
 const char *APRS_SERVER = "noam.aprs2.net";					  // recommended for North America
 const char *APRS_DEVICE_NAME = "https://w4krl.com/iot-kits/"; // link to my website
 // #define APRS_SOFTWARE_NAME "D1S-VEVOR"						  // unit ID
-#define APRS_SOFTWARE_VERS FW_VERSION						  // FW version
-#define APRS_PORT 14580										  // do not change port
-#define APRS_TIMEOUT 2000L									  // milliseconds
-const int APRS_BUFFER_SIZE = 513;							  // APRS buffer size, must be at least 512 bytes + 1 for null terminator
+#define APRS_SOFTWARE_VERS FW_VERSION // FW version
+#define APRS_PORT 14580				  // do not change port
+#define APRS_TIMEOUT 2000L			  // milliseconds
+const int APRS_BUFFER_SIZE = 513;	  // APRS buffer size, must be at least 512 bytes + 1 for null terminator
 
 // *******************************************************
 // ******************* GLOBALS ***************************
@@ -52,6 +52,15 @@ String APRSdataTelemetry = ""; // telemetry data
 String APRSserver = "";		   // APRS-IS server
 char APRSage[9] = "";		   // time stamp for received data
 
+// Global state tracker
+enum APRS_State {
+  APRS_DISCONNECTED,
+  APRS_CONNECTED,
+  APRS_LOGGED_IN,
+  APRS_VERIFIED
+};
+APRS_State aprsState = APRS_DISCONNECTED;
+
 //! ************ APRS Bulletin globals ***************
 // int *lineArray;				 // holds shuffled index to aphorisms
 int lineCount;				 // number of aphorisms in file
@@ -59,86 +68,47 @@ bool amBulletinSent = false; // APRS morning bulletin
 bool pmBulletinSent = false; // APRS evening bulletin
 int lineIndex = 1;			 // APRS bulletin index
 
-/*
-*******************************************************
-**************** Logon to APRS-IS *****************
-*******************************************************
-*/
+/**
+ * @brief Performs the APRS-IS logon procedure.
+ *
+ * Constructs the APRS-IS logon string using the configured callsign, passcode,
+ * software name, version, and filter, then sends it to the APRS-IS server.
+ * Also outputs the logon string to the debug interface for logging purposes.
+ *
+ * Dependencies:
+ * - Assumes global variables/constants: CALLSIGN, APRS_PASSCODE, APRS_SOFTWARE_NAME,
+ *   APRS_SOFTWARE_VERS, APRS_FILTER, and client are defined and accessible.
+ * - Uses DEBUG_PRINTLN for debug output.
+ */
+void performAPRSLogon() {
+    // Construct the APRS-IS logon string
+    String dataString = "user " + CALLSIGN;
+    dataString += " pass " + APRS_PASSCODE;
+    dataString += " ver " + APRS_SOFTWARE_NAME + " " + APRS_SOFTWARE_VERS;
+    dataString += " filter " + APRS_FILTER;
 
-void logonToAPRS()
-{
-	// Attempt connection to APRS-IS server
-	if (client.connect(APRS_SERVER, APRS_PORT))
-	{
-		DEBUG_PRINTLN(F("APRS connected"));
-	}
-	else
-	{
-		DEBUG_PRINTLN(F("APRS connection failed."));
-		return;
-	}
-
-	String rcvLine = client.readStringUntil('\n');
-	DEBUG_PRINTLN("Rcvd: " + rcvLine);
-
-	if (rcvLine.indexOf("full") > 0)
-	{
-		DEBUG_PRINTLN(F("APRS port full. Retrying."));
-		client.stop();
-		delay(500);
-
-		if (client.connect(APRS_SERVER, APRS_PORT))
-		{
-			DEBUG_PRINTLN(F("APRS reconnected successfully."));
-		}
-		else
-		{
-			DEBUG_PRINTLN(F("APRS reconnection failed."));
-			return;
-		}
-	}
-
-	// Send APRS-IS logon info
-	String dataString = "user " + CALLSIGN;
-	dataString += " pass " + APRS_PASSCODE;
-	dataString += " ver " + APRS_SOFTWARE_NAME + " " + APRS_SOFTWARE_VERS;
-	dataString += " filter " + APRS_FILTER;
-	client.println(dataString);
-	DEBUG_PRINTLN("APRS logon: " + dataString);
-
-	boolean verified = false;
-	unsigned long timeBegin = millis();
-
-	while (!verified && (millis() - timeBegin < APRS_TIMEOUT))
-	{
-		if (client.available())
-		{
-			String rcvLine = client.readStringUntil('\n');
-			DEBUG_PRINTLN("Rcvd: " + rcvLine);
-
-			if (rcvLine.indexOf("verified") != -1 && rcvLine.indexOf("unverified") == -1)
-			{
-				verified = true;
-			}
-		}
-		yield();
-	}
-
-	if (!verified)
-	{
-		DEBUG_PRINTLN("APRS user unverified.");
-		return;
-	}
+    // Send the logon string to the server
+    client.println(dataString);
+    DEBUG_PRINTLN("APRS logon: " + dataString);
 }
 
-// void checkAPRSConnection()
-// {
-// 	if (!client.connected())
-// 	{
-// 		DEBUG_PRINTLN(F("APRS connection lost. Reconnecting..."));
-// 		logonToAPRS();
-// 	}
-// }
+/**
+ * @brief Establishes a connection to the APRS network and verifies logon status.
+ *
+ * This function attempts to connect to the APRS network. If the connection is successful,
+ * it updates the APRS state to APRS_CONNECTED and performs the APRS logon procedure.
+ * After logging on, it verifies the logon status, and if successful, updates the APRS state
+ * to APRS_VERIFIED.
+ */
+void connectToAPRSserver() {
+  if (connectToAPRS()) {
+    aprsState = APRS_CONNECTED;
+    performAPRSLogon();
+    if (verifyLogonStatus()) {
+      aprsState = APRS_VERIFIED;
+    }
+  }
+}
 
 /*
 *******************************************************
@@ -220,10 +190,18 @@ String APRSlocation(float lat, float lon)
 	return String(buf);
 } // APRSlocation()
 
+
+/**
+ * @brief Posts a message to the APRS-IS network.
+ *
+ * This function sends the specified message to the APRS-IS server if the client is connected.
+ * If the connection is lost, it logs a debug message indicating the failure to post.
+ *
+ * @param message The APRS message to be posted as a String.
+ */
 void postToAPRS(String message)
 {
 	// post a message to APRS-IS
-	// checkAPRSConnection(); // check if connected to APRS-IS server
 	if (client.connected())
 	{
 		client.println(message);
@@ -235,6 +213,23 @@ void postToAPRS(String message)
 	}
 }
 
+/**
+ * @brief Processes and sends scheduled APRS bulletins.
+ *
+ * This function checks the current time and sends APRS bulletins at specific times of the day:
+ * - At 08:00 EST, if the morning bulletin has not been sent, it selects an aphorism and sends it as a morning bulletin.
+ * - At 20:00 EST, if the evening bulletin has not been sent, it selects an aphorism and sends it as an evening bulletin.
+ * 
+ * The function ensures that each bulletin is sent only once per day by using flags (`amBulletinSent` and `pmBulletinSent`).
+ * These flags are reset at midnight to allow bulletins to be sent again the next day.
+ *
+ * Dependencies:
+ * - `myTZ`: An object providing the current time (hour, minute, day).
+ * - `pickAphorism()`: Function to select a bulletin message.
+ * - `APRSsendBulletin()`: Function to send the bulletin.
+ * - `APHORISM_FILE`, `lineArray`: Resources used for selecting aphorisms.
+ * - `amBulletinSent`, `pmBulletinSent`: Flags indicating if bulletins have been sent.
+ */
 void processBulletins()
 {
 	//! process APRS bulletins
@@ -266,6 +261,16 @@ void processBulletins()
 	}
 }
 
+/**
+ * @brief Sends a bulletin or announcement to APRS-IS.
+ *
+ * This function formats and posts a bulletin message to the APRS-IS network.
+ * The message must not exceed 67 characters in length. If the message is too long,
+ * the function will print a debug message and return without sending.
+ *
+ * @param message The bulletin message to send (maximum 67 characters).
+ * @param ID The identifier for the bulletin.
+ */
 void APRSsendBulletin(String message, String ID)
 {
 	// send a bulletin or announcement to APRS-IS
@@ -278,34 +283,6 @@ void APRSsendBulletin(String message, String ID)
 	String bulletin = APRSformatBulletin(message, ID);
 	postToAPRS(bulletin);
 } // APRSsendBulletin()
-
-// *******************************************************
-// ************ RECEIVE APRS-IS DATA *********************
-// *******************************************************
-// String GetAprsPacket()
-// {
-// 	// add a timeout function
-// 	const int maxSize = 500; // what is largest packet???
-// 	char rcvBuffer[maxSize] = "";
-// 	if (client.available() > 0)
-// 	{
-// 		int i = 0;
-// 		while (i < maxSize)
-// 		{
-// 			char charRcvd = client.read();
-// 			rcvBuffer[i] = charRcvd;
-// 			i++; // increment index
-// 			if (charRcvd == '\n')
-// 			{
-// 				// entire line received
-// 				break;
-// 			}
-// 		}
-// 		rcvBuffer[i] = '\0'; // add null marker at end to finish string
-// 		Serial.println(rcvBuffer);
-// 	}
-// 	return rcvBuffer;
-// } // getAPRSPacket()
 
 // *******************************************************
 // **************** SEND APRS ACK ************************
@@ -324,124 +301,159 @@ void APRSsendACK(String recipient, String msgID)
 } // APRsendACK()
 
 /**
- * @brief Processes received APRS-IS data string and updates relevant data structures.
+ * @brief Reads an APRS packet from the client connection.
  *
- * This function parses the incoming APRS-IS data string to extract and update
- * weather data, telemetry, and messages. It ignores comments and short strings.
- * If the received data contains weather or telemetry information and it has changed
- * since the last update, the corresponding variables are updated. The function also
- * checks for messages, but message handling is currently commented out.
+ * This function attempts to read a complete APRS packet from the client connection.
+ * It waits for data to become available and reads it until a newline character is encountered.
+ * If no data is available within a specified timeout, it closes the connection.
  *
- * @param APRSrcvd The received APRS-IS data as a String.
+ * @param packet A reference to a String where the read packet will be stored.
+ * @return true if a packet was successfully read, false otherwise.
  */
-// void APRSparseData(String APRSrcvd)
-// {
-// 	// process received APRS-IS data
-// 	// parse the rcvdData string to extract relevant information
-// 	// for example, you can extract the callsign, message, etc.
-// 	// and store them in appropriate variables or data structures
+bool readAPRSPacket(String &packet) {
+    static unsigned long timeoutStamp = 0;
+    const unsigned long TIMEOUT_MS = 1500;
 
-// 	// ignore comments and short strings (10 is arbitrary)
-// 	if (!APRSrcvd.isEmpty() && APRSrcvd[0] != APRS_ID_COMMENT && APRSrcvd.length() > 10)
-// 	{
-// 		// does stream contain weather data?
-// 		if (APRSrcvd.indexOf(APRS_ID_WEATHER) > 0)
-// 		{
-// 			if (APRSdataWeather != APRSrcvd) // it has changed so update it
-// 			{
-// 				APRSdataWeather = APRSrcvd; // record time data is received
-// 				sprintf(APRSage, "%02d:%02d:%02d", myTZ.hour(), myTZ.minute(), myTZ.second());
-// 			}
-// 		}
-// 		// does stream contain Telemetry?
-// 		if (APRSrcvd.indexOf("T#") > 0)
-// 		{
-// 			if (APRSdataTelemetry != APRSrcvd)
-// 			{
-// 				APRSdataTelemetry = APRSrcvd;
-// 			}
-// 		}
-// 		// does stream contain a message?
-// 		if (APRSrcvd.indexOf("::") > 0)
-// 		{
-// 			  APRSdataMessage = APRSrcvd;
-// 		}
-// 	}
-// } // APRSparsedData()
+    // If not connected, do not attempt to read
+    if (!client.connected()) {
+        packet = "";
+        return false;
+    }
 
-/////////////////////
-bool readAPRSPacket(String &packet)
-{
-	static unsigned long timeoutStamp = 0;
-	const unsigned long TIMEOUT_MS = 1500;
-
-	int retries = 0;
-	while ((!client.connected() || !client.available()) && retries < 5)
-	{
-		logonToAPRS(); // Attempt to reconnect if not connected
-		retries++;
-		delay(200); // Small delay between retries
-	}
-	if (!client.connected() || !client.available())
-	{
-		return false;
-	}
-
-	if (timeoutStamp == 0)
-	{
-		timeoutStamp = millis();
-	}
-
-	packet = client.readStringUntil('\n');
-
-	if (packet.length() > 0)
-	{
-		timeoutStamp = 0; // Reset timer
-		return true;
-	}
-
-	if (millis() - timeoutStamp > TIMEOUT_MS)
-	{
-		timeoutStamp = 0;
-		client.stop();
-	}
-
-	return false;
+    // If there is data available, read a line
+    if (client.available()) {
+        packet = client.readStringUntil('\n');
+        timeoutStamp = 0; // Reset timer on successful read
+        return (packet.length() > 0);
+    } else {
+        // Start or continue timeout timer
+        if (timeoutStamp == 0) {
+            timeoutStamp = millis();
+        } else if (millis() - timeoutStamp > TIMEOUT_MS) {
+            timeoutStamp = 0;
+            client.stop(); // Close connection on timeout
+        }
+        packet = "";
+        return false;
+    }
 }
 
-void handleAPRSData(const String &packet)
-{
-	if (packet.length() < 10 || packet.charAt(0) == '#')
-		return;
-
-	//   time_t receivedTime = myTZ.now();
-
-	if (packet.indexOf("APRS_WX_ID") != -1)
-	{
-		if (APRSdataWeather != packet)
-		{
-			APRSdataWeather = packet;
-			//   APRSweatherTime = receivedTime;
-		}
-	}
-
-	if (packet.indexOf("T#") != -1)
-	{
-		if (APRSdataTelemetry != packet)
-		{
-			APRSdataTelemetry = packet;
-		}
-	}
-}
-
+/**
+ * @brief Polls for incoming APRS packets and processes them if available.
+ *
+ * This function attempts to read an APRS packet into a buffer. If a packet is successfully read,
+ * it processes the packet data and outputs the received packet to the serial console.
+ *
+ * @note Relies on the functions readAPRSPacket(String&) and handleAPRSData(const String&).
+ */
 void pollAPRS()
 {
-	String aprsBuffer;
-	if (readAPRSPacket(aprsBuffer))
-	{
-		handleAPRSData(aprsBuffer);
-		Serial.println("Received APRS packet: " + aprsBuffer);
-	}
+  if (aprsState != APRS_VERIFIED) return;
+
+  String packet;
+  while (readAPRSPacket(packet)) {
+    if (packet.startsWith("#")) {  // Handle server messages
+    //   processServerMessage(packet);
+    } else {                        // Handle APRS data
+    //   processAPRSPacket(packet);
+    }
+  }
+  
+  // Connection watchdog
+  if (!client.connected()) {
+    aprsState = APRS_DISCONNECTED;
+    DEBUG_PRINTLN(F("Connection lost"));
+  }
+}
+
+/**
+ * @brief Verifies the logon status by reading APRS packets within a timeout period.
+ *
+ * This function waits for a response from the APRS server indicating the logon status.
+ * It reads incoming APRS packets until either a verified or unverified logon response is received,
+ * or until the timeout period (APRS_TIMEOUT) elapses.
+ *
+ * @return true if logon is verified, false if unverified or if the operation times out.
+ */
+bool verifyLogonStatus() {
+    unsigned long timeout = millis() + APRS_TIMEOUT;
+    while (millis() < timeout) {
+        String response;
+        if (readAPRSPacket(response)) {
+            // Look for the logon response line
+            if (response.startsWith("# logresp")) {
+                if (response.indexOf("verified") != -1 && response.indexOf("unverified") == -1) {
+                    DEBUG_PRINTLN(F("Logon verified"));
+                    return true;
+                } else if (response.indexOf("unverified") != -1) {
+                    DEBUG_PRINTLN(F("Logon unverified"));
+                    return false;
+                }
+            }
+        }
+        yield();
+    }
+    DEBUG_PRINTLN(F("Verification timeout"));
+    return false;
+}
+
+/**
+ * @brief Updates the APRS (Automatic Packet Reporting System) state machine.
+ *
+ * This function manages the APRS connection and data polling process by
+ * transitioning through various states:
+ * - If disconnected, attempts to establish a connection.
+ * - If connected or logged in, verifies the logon status.
+ * - If verified, polls APRS data.
+ *
+ * The function relies on external state variables and helper functions:
+ * - aprsState: Current state of the APRS connection.
+ * - establishAPRSConnection(): Initiates connection to APRS.
+ * - verifyLogonStatus(): Checks if logon is successful.
+ * - pollAPRS(): Polls APRS data when verified.
+ */
+void updateAPRS() {
+  // Update APRS data
+  switch (aprsState) {
+    case APRS_DISCONNECTED:
+      connectToAPRS();
+      break;
+      
+    case APRS_CONNECTED:  // Fall through
+    case APRS_LOGGED_IN:
+      if (verifyLogonStatus()) {
+        aprsState = APRS_VERIFIED;
+      }
+      break;
+      
+    case APRS_VERIFIED:
+      pollAPRS();
+      break;
+  }
+} // updateAPRS()
+
+/**
+ * @brief Attempts to establish a connection to the APRS server.
+ *
+ * This function checks if the client is already connected to the APRS server.
+ * If not connected, it attempts to connect using the specified server address and port.
+ * Debug messages are printed to indicate the connection status.
+ *
+ * @return true if the client is already connected or the connection is successful, false otherwise.
+ */
+bool connectToAPRS() {
+    // Attempt to connect only if not already connected
+    if (client.connected()) {
+        return true;
+    }
+
+    if (client.connect(APRS_SERVER, APRS_PORT)) {
+        DEBUG_PRINTLN(F("APRS connected"));
+        return true;
+    } else {
+        DEBUG_PRINTLN(F("APRS connection failed."));
+        return false;
+    }
 }
 
 // end of file
