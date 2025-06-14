@@ -1,4 +1,7 @@
 // This file is part of the TFT_eSPI library for ESP8266/ESP32
+// and the Wemos 1.4" 128x128 TFT display shield with CS-D0-MOD
+// The mod was necessary to prevent flicker with older TFT libraries that were very slow
+
 #define USER_SETUP_ID 7
 #define ST7735_DRIVER
 #define TFT_WIDTH 128
@@ -8,7 +11,7 @@
 // #define ST7735_GREENTAB
 // #define ST7735_GREENTAB2
 #define ST7735_GREENTAB3 //! this is the one that works
-// #define ST7735_GREENTAB128    // For 128 x 128 display
+// #define ST7735_GREENTAB128
 // #define ST7735_REDTAB
 
 // For ST7735, ST7789 and ILI9341 ONLY, define the colour order IF the blue and red are swapped on your display
@@ -17,7 +20,7 @@
 //  #define TFT_RGB_ORDER TFT_RGB  // Colour order Red-Green-Blue
 //  #define TFT_RGB_ORDER TFT_BGR  // Colour order Blue-Green-Red
 
-// For D1Mini - use pin numbers in the form PIN_Dx where Dx is the D1MINI pin designation
+// For D1 Mini - use pin numbers in the form PIN_Dx where Dx is the D1 Mini pin designation
 #define TFT_CS PIN_D0 // Chip select control pin NO_MOD D4, MOD D0
 #define TFT_DC PIN_D3 // Data Command control pin
 // #define TFT_RST  PIN_D4  // Reset pin could connect to NodeMCU RST
